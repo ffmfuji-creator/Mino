@@ -1,0 +1,37 @@
+name: Create Mino signing key (run once)
+
+# 只需运行一次。运行后下载产物 mino-signing-key，把里面两个文本文件的内容
+# 分别保存为仓库 Secrets：MINO_KEYSTORE_BASE64 和 MINO_KEYSTORE_PASSWORD。
+# 之后不要再运行，否则会生成一把新钥匙。
+
+on:
+  workflow_dispatch:
+
+jobs:
+  keygen:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Generate keystore
+        run: |
+          PASS=$(openssl rand -hex 16)
+          keytool -genkeypair -storetype PKCS12 \
+            -keystore mino-release.jks -alias mino \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -storepass "$PASS" -keypass "$PASS" \
+            -dname "CN=Mino, O=Mino"
+          mkdir out
+          cp mino-release.jks out/
+          base64 -w0 mino-release.jks > out/MINO_KEYSTORE_BASE64.txt
+          echo -n "$PASS" > out/MINO_KEYSTORE_PASSWORD.txt
+          ls -la out
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mino-signing-key
+          path: out/
+          retention-days: 1
