@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 
 import 'app_state.dart';
 import 'cloud_sync.dart';
+import 'notifier.dart';
 import 'growth_screen.dart';
 import 'moments_screen.dart';
 import 'settings_screen.dart';
@@ -16,6 +17,7 @@ import 'ui.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+  await Notifier.init();
   await CloudSync.init();
   final state = await AppState.load();
   runApp(MinoApp(state: state));

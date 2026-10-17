@@ -1,7 +1,7 @@
 name: mino
 description: Mino - 深色科技风专注计时与纪念日应用
 publish_to: 'none'
-version: 0.3.0+4
+version: 0.4.0+5
 
 environment:
   sdk: '>=3.3.0 <4.0.0'
@@ -13,6 +13,27 @@ dependencies:
   firebase_core: any
   firebase_auth: any
   cloud_firestore: any
+  flutter_local_notifications: ^19.0.0
+  timezone: any
+
+dev_dependencies:
+  flutter_launcher_icons: ^0.14.0
+  flutter_native_splash: ^2.4.0
 
 flutter:
   uses-material-design: true
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/icon/icon.png"
+  adaptive_icon_background: "#0A0E1A"
+  adaptive_icon_foreground: "assets/icon/icon_fg.png"
+  remove_alpha_ios: true
+
+flutter_native_splash:
+  color: "#0A0E1A"
+  image: assets/icon/splash.png
+  android_12:
+    color: "#0A0E1A"
+    image: assets/icon/splash.png

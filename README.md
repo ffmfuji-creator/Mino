@@ -1,4 +1,4 @@
-# Mino v0.3.0
+# Mino v0.4.0
 
 Flutter 专注计时应用（番茄钟 + 任务 + 统计 + 成长）。
 
@@ -9,6 +9,9 @@ Flutter 专注计时应用（番茄钟 + 任务 + 统计 + 成长）。
 - ui.dart — 通用组件与主题
 - firebase_config.dart — 填写 Firebase 配置（未填则只有本地模式）
 - cloud_sync.dart — Firebase 登录与 Firestore 读写
+- notifier.dart — 后台结束提醒（本地通知）
+- patch_android.py — 构建时补齐安卓权限/签名/兼容配置
+- make_icon.py — 构建时生成应用图标、启动页和通知小图标
 - account_ui.dart — 登录/注册界面与设置页账号区块
 - timer_screen / tasks_screen / stats_screen / growth_screen / moments_screen / settings_screen — 六个页面（moments = 纪念日与倒数日）
 - .github/workflows/build-android.yml — 云端构建 APK

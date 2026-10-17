@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'cloud_sync.dart';
+import 'notifier.dart';
 
 enum Priority { low, medium, high }
 
@@ -266,11 +267,16 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool _pendingResync = false;
   bool _cloudReady = false; // 本次登录是否已完成一次成功的拉取/同步
 
+  // ───── 后台提醒状态 ─────
+  bool _inForeground = true;
+  bool _askedNotif = false;
+
   static Future<AppState> load() async {
     final prefs = await SharedPreferences.getInstance();
     final s = AppState._(prefs);
     s._restore();
     s.initCloud();
+    Notifier.cancel(); // 冷启动一定在前台：清掉可能残留的预约
     WidgetsBinding.instance.addObserver(s);
     return s;
   }
@@ -422,6 +428,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     endAtMs = DateTime.now().millisecondsSinceEpoch + remainingMs;
     status = RunStatus.running;
     _startTicker();
+    _requestNotifPermissionOnce();
     _save();
     notifyListeners();
   }
@@ -534,7 +541,11 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
 
     _enter(next, run: settings.autoStart && !restored);
     msgs.addAll(_rewardMessages(levelBefore));
-    if (!restored) _alert();
+    // 后台时由系统通知负责提醒，避免重复；前台时用应用内提示音/振动
+    if (!restored && _inForeground) _alert();
+    if (!_inForeground && status == RunStatus.running) {
+      _scheduleBackgroundNotification();
+    }
     if (finished == Phase.focus) {
       _touch();
     } else {
@@ -544,6 +555,23 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     for (final m in msgs) {
       _events.add(m);
     }
+  }
+
+  void _requestNotifPermissionOnce() {
+    if (_askedNotif) return;
+    _askedNotif = true;
+    Notifier.requestPermission();
+  }
+
+  /// 应用进入后台且计时在运行：预约一条「结束」通知。
+  void _scheduleBackgroundNotification() {
+    if (status != RunStatus.running) return;
+    Notifier.scheduleEnd(
+      endAtMs: endAtMs,
+      focus: phase == Phase.focus,
+      sound: settings.sound,
+      vibrate: settings.vibrate,
+    );
   }
 
   void _alert() {
@@ -560,11 +588,22 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      if (status == RunStatus.running) _tick(force: true);
+      _inForeground = true;
+      Notifier.cancel(); // 回到前台：取消后台预约，改由应用内处理
+      if (status == RunStatus.running) {
+        if (endAtMs <= DateTime.now().millisecondsSinceEpoch) {
+          // 在后台期间已经结束：补记结果，但不自动开始下一段、也不再响铃
+          _completePhase(restored: true);
+        } else {
+          _tick(force: true);
+        }
+      }
       _resumeSync();
     } else if (state == AppLifecycleState.paused) {
+      _inForeground = false;
       _save();
       _flushSync();
+      _scheduleBackgroundNotification();
     }
   }
 

@@ -72,6 +72,7 @@ class SettingsScreen extends StatelessWidget {
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 title: const Text('提示音'),
+                subtitle: const Text('应用内和后台通知都会使用'),
                 value: st.sound,
                 onChanged: (v) => s.updateSettings((x) => x.sound = v),
               ),
@@ -107,7 +108,7 @@ class SettingsScreen extends StatelessWidget {
         ),
         const SizedBox(height: 20),
         Center(
-          child: Text('Mino v0.3.0',
+          child: Text('Mino v0.4.0',
               style: TextStyle(fontSize: 12, color: mutedColor(context))),
         ),
       ],
