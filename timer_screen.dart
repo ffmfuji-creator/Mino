@@ -1,8 +1,9 @@
 import 'dart:math' as math;
 
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
 
 import 'app_state.dart';
+import 'i18n.dart';
 import 'ui.dart';
 
 class TimerScreen extends StatelessWidget {
@@ -121,7 +122,7 @@ class TimerScreen extends StatelessWidget {
           children: [
             IconButton.outlined(
               onPressed: s.resetCurrent,
-              tooltip: '重置',
+              tooltip: tr('重置'),
               iconSize: 26,
               icon: const Icon(Icons.replay),
             ),
@@ -139,13 +140,21 @@ class TimerScreen extends StatelessWidget {
             const SizedBox(width: 24),
             IconButton.outlined(
               onPressed: s.skip,
-              tooltip: '跳过',
+              tooltip: tr('跳过'),
               iconSize: 26,
               icon: const Icon(Icons.skip_next),
             ),
           ],
         ),
-        const SizedBox(height: 26),
+        if (running && s.phase == Phase.focus && s.settings.dndTip)
+          Padding(
+            padding: const EdgeInsets.only(top: 14),
+            child: Center(
+              child: Text('专注中 · 建议打开手机「勿扰模式」，减少打扰',
+                  style: TextStyle(fontSize: 12, color: mutedColor(context))),
+            ),
+          ),
+        const SizedBox(height: 22),
         InkWell(
           borderRadius: BorderRadius.circular(18),
           onTap: () => _pickTask(context, s),
@@ -178,6 +187,8 @@ class TimerScreen extends StatelessWidget {
             ),
           ),
         ),
+        const SizedBox(height: 12),
+        const _AmbientPanel(),
       ],
     );
   }
@@ -268,4 +279,66 @@ class _RingPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _RingPainter old) =>
       old.progress != progress || old.color != color || old.track != track;
+}
+
+/// 白噪音快捷选择：专注时播放，可调音量。
+class _AmbientPanel extends StatelessWidget {
+  const _AmbientPanel();
+
+  @override
+  Widget build(BuildContext context) {
+    final s = AppScope.of(context);
+    final cur = s.settings.ambient;
+    const kinds = <String, String>{
+      'none': '无',
+      'white': '白噪音',
+      'brown': '棕噪音',
+      'rain': '雨声',
+    };
+    return Panel(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.graphic_eq, size: 20, color: mutedColor(context)),
+              const SizedBox(width: 8),
+              Text('专注音效',
+                  style: TextStyle(fontSize: 13, color: mutedColor(context))),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            children: [
+              for (final e in kinds.entries)
+                ChoiceChip(
+                  label: Text(e.value),
+                  selected: cur == e.key,
+                  onSelected: (_) => s.updateSettings((x) => x.ambient = e.key),
+                ),
+            ],
+          ),
+          if (cur != 'none')
+            Row(
+              children: [
+                Icon(Icons.volume_down, size: 18, color: mutedColor(context)),
+                Expanded(
+                  child: Slider(
+                    value: s.settings.ambientVolume.toDouble(),
+                    min: 0,
+                    max: 100,
+                    divisions: 20,
+                    onChanged: (v) =>
+                        s.updateSettings((x) => x.ambientVolume = v.round()),
+                  ),
+                ),
+                Icon(Icons.volume_up, size: 18, color: mutedColor(context)),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
 }

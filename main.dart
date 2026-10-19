@@ -1,12 +1,13 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
 import 'package:flutter/services.dart';
 
 import 'app_state.dart';
 import 'cloud_sync.dart';
 import 'notifier.dart';
 import 'growth_screen.dart';
+import 'i18n.dart';
 import 'moments_screen.dart';
 import 'settings_screen.dart';
 import 'stats_screen.dart';
@@ -29,7 +30,8 @@ class MinoApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppScope(
+    return I18nScope(
+      child: AppScope(
       state: state,
       child: ValueListenableBuilder<bool>(
         valueListenable: state.darkNotifier,
@@ -41,6 +43,7 @@ class MinoApp extends StatelessWidget {
           themeMode: dark ? ThemeMode.dark : ThemeMode.light,
           home: HomeShell(state: state),
         ),
+      ),
       ),
     );
   }
@@ -92,6 +95,7 @@ class _HomeShellState extends State<HomeShell> {
 
   @override
   Widget build(BuildContext context) {
+    I18nScope.watch(context); // 切换语言时刷新导航栏文字
     return Scaffold(
       body: SafeArea(
         bottom: false,
@@ -100,27 +104,27 @@ class _HomeShellState extends State<HomeShell> {
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
         onDestinationSelected: (i) => setState(() => _index = i),
-        destinations: const [
+        destinations: [
           NavigationDestination(
-              icon: Icon(Icons.timer_outlined),
-              selectedIcon: Icon(Icons.timer),
-              label: '专注'),
+              icon: const Icon(Icons.timer_outlined),
+              selectedIcon: const Icon(Icons.timer),
+              label: tr('专注')),
           NavigationDestination(
-              icon: Icon(Icons.checklist), label: '任务'),
+              icon: const Icon(Icons.checklist), label: tr('任务')),
           NavigationDestination(
-              icon: Icon(Icons.insights_outlined),
-              selectedIcon: Icon(Icons.insights),
-              label: '统计'),
+              icon: const Icon(Icons.insights_outlined),
+              selectedIcon: const Icon(Icons.insights),
+              label: tr('统计')),
           NavigationDestination(
-              icon: Icon(Icons.emoji_events_outlined),
-              selectedIcon: Icon(Icons.emoji_events),
-              label: '成长'),
+              icon: const Icon(Icons.emoji_events_outlined),
+              selectedIcon: const Icon(Icons.emoji_events),
+              label: tr('成长')),
           NavigationDestination(
-              icon: Icon(Icons.event_outlined),
-              selectedIcon: Icon(Icons.event),
-              label: '日子'),
+              icon: const Icon(Icons.event_outlined),
+              selectedIcon: const Icon(Icons.event),
+              label: tr('日子')),
           NavigationDestination(
-              icon: Icon(Icons.tune), label: '设置'),
+              icon: const Icon(Icons.tune), label: tr('设置')),
         ],
       ),
     );

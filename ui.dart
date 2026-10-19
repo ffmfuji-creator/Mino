@@ -1,6 +1,7 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
 
 import 'app_state.dart';
+import 'i18n.dart';
 
 /// 把 AppState 提供给整棵组件树。
 class AppScope extends InheritedNotifier<AppState> {

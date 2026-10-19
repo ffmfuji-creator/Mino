@@ -1,7 +1,9 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
 
 import 'account_ui.dart';
 import 'app_state.dart';
+import 'export_service.dart';
+import 'i18n.dart';
 import 'ui.dart';
 
 class SettingsScreen extends StatelessWidget {
@@ -85,6 +87,34 @@ class SettingsScreen extends StatelessWidget {
             ],
           ),
         ),
+        const SectionTitle('专注体验'),
+        Panel(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          child: Column(
+            children: [
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('计时中保持屏幕常亮'),
+                value: st.keepAwake,
+                onChanged: (v) => s.updateSettings((x) => x.keepAwake = v),
+              ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('白噪音只在专注时播放'),
+                subtitle: const Text('关闭后，休息时也会继续播放（音效在「专注」页选择）'),
+                value: st.ambientOnlyFocus,
+                onChanged: (v) =>
+                    s.updateSettings((x) => x.ambientOnlyFocus = v),
+              ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('专注时提示开启勿扰模式'),
+                value: st.dndTip,
+                onChanged: (v) => s.updateSettings((x) => x.dndTip = v),
+              ),
+            ],
+          ),
+        ),
         const SectionTitle('外观'),
         Panel(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -95,7 +125,38 @@ class SettingsScreen extends StatelessWidget {
             onChanged: (v) => s.updateSettings((x) => x.darkMode = v),
           ),
         ),
+        const SectionTitle('语言 / Language'),
+        Panel(
+          child: SizedBox(
+            width: double.infinity,
+            child: SegmentedButton<String>(
+              showSelectedIcon: false,
+              segments: const [
+                ButtonSegment<String>(value: 'auto', label: Text('自动')),
+                ButtonSegment<String>(value: 'zh', label: Text('中文')),
+                ButtonSegment<String>(value: 'en', label: Text('English')),
+              ],
+              selected: {st.language},
+              onSelectionChanged: (v) =>
+                  s.updateSettings((x) => x.language = v.first),
+            ),
+          ),
+        ),
         const SectionTitle('数据'),
+        OutlinedButton.icon(
+          onPressed: () async {
+            final err = await ExportService.exportAll(s);
+            if (err != null && context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                    content: Text(err), behavior: SnackBarBehavior.floating),
+              );
+            }
+          },
+          icon: const Icon(Icons.ios_share),
+          label: const Text('导出为表格（CSV）'),
+        ),
+        const SizedBox(height: 10),
         OutlinedButton.icon(
           onPressed: () async {
             final ok = await confirmDialog(
@@ -108,7 +169,7 @@ class SettingsScreen extends StatelessWidget {
         ),
         const SizedBox(height: 20),
         Center(
-          child: Text('Mino v0.4.0',
+          child: Text('Mino v0.5.0',
               style: TextStyle(fontSize: 12, color: mutedColor(context))),
         ),
       ],

@@ -1,8 +1,10 @@
 import 'dart:math' as math;
 
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
 
 import 'app_state.dart';
+import 'i18n.dart';
+import 'sessions_screen.dart';
 import 'ui.dart';
 
 class StatsScreen extends StatelessWidget {
@@ -124,14 +126,74 @@ class StatsScreen extends StatelessWidget {
             ],
           ),
         ),
+        if (_topTasks(s).isNotEmpty) ...[
+          const SectionTitle('任务专注时长'),
+          Panel(
+            child: Column(
+              children: [
+                for (final t in _topTasks(s))
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 5),
+                    child: _Line(t.title, hm(t.focusSec)),
+                  ),
+              ],
+            ),
+          ),
+        ],
+        const SectionTitle('最近专注'),
+        Panel(
+          child: s.sessions.isEmpty
+              ? Text('还没有记录',
+                  style: TextStyle(color: mutedColor(context)))
+              : Column(
+                  children: [
+                    for (final x in s.sessionsNewestFirst.take(5))
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 5),
+                        child: Row(
+                          children: [
+                            Text(
+                                '${dayKey(x.endedAt).substring(5)} ${x.endedAt.hour.toString().padLeft(2, '0')}:${x.endedAt.minute.toString().padLeft(2, '0')}',
+                                style: TextStyle(
+                                    fontSize: 12, color: mutedColor(context))),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(x.taskTitle ?? '未关联任务',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis),
+                            ),
+                            Text('${x.minutes} 分钟',
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w600)),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+        ),
+        Align(
+          alignment: Alignment.centerRight,
+          child: TextButton(
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(builder: (_) => const SessionsScreen()),
+            ),
+            child: const Text('查看全部记录'),
+          ),
+        ),
         Padding(
-          padding: const EdgeInsets.fromLTRB(4, 12, 4, 0),
+          padding: const EdgeInsets.fromLTRB(4, 8, 4, 0),
           child: Text('仅完整结束的专注计入统计；跳过或重置不计入。',
               style: TextStyle(fontSize: 12, color: mutedColor(context))),
         ),
       ],
     );
   }
+}
+
+List<TaskItem> _topTasks(AppState s) {
+  final list = s.tasks.where((t) => t.focusSec > 0).toList();
+  list.sort((a, b) => b.focusSec.compareTo(a.focusSec));
+  return list.take(5).toList();
 }
 
 class _Metric extends StatelessWidget {

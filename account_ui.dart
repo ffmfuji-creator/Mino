@@ -1,6 +1,7 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
 
 import 'app_state.dart';
+import 'i18n.dart';
 import 'ui.dart';
 
 void _toast(BuildContext context, String message) {
@@ -139,7 +140,7 @@ class AccountSection extends StatelessWidget {
           controller: controller,
           obscureText: true,
           autofocus: true,
-          decoration: const InputDecoration(labelText: '当前密码'),
+          decoration: InputDecoration(labelText: tr('当前密码')),
         ),
         actions: [
           TextButton(
@@ -250,9 +251,9 @@ class _AuthSheetState extends State<_AuthSheet> {
               controller: _email,
               keyboardType: TextInputType.emailAddress,
               autocorrect: false,
-              decoration: const InputDecoration(
-                labelText: '邮箱',
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                labelText: tr('邮箱'),
+                border: const OutlineInputBorder(),
               ),
             ),
             const SizedBox(height: 12),
@@ -260,7 +261,7 @@ class _AuthSheetState extends State<_AuthSheet> {
               controller: _password,
               obscureText: true,
               decoration: InputDecoration(
-                labelText: _register ? '密码（至少 6 位）' : '密码',
+                labelText: tr(_register ? '密码（至少 6 位）' : '密码'),
                 border: const OutlineInputBorder(),
               ),
               onSubmitted: (_) => _submit(),

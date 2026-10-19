@@ -1,4 +1,4 @@
-# Mino v0.4.0
+# Mino v0.5.0
 
 Flutter 专注计时应用（番茄钟 + 任务 + 统计 + 成长）。
 
@@ -12,6 +12,11 @@ Flutter 专注计时应用（番茄钟 + 任务 + 统计 + 成长）。
 - notifier.dart — 后台结束提醒（本地通知）
 - patch_android.py — 构建时补齐安卓权限/签名/兼容配置
 - make_icon.py — 构建时生成应用图标、启动页和通知小图标
+- make_sounds.py — 构建时生成白噪音（白/棕/雨声）和结束提示音
+- effects.dart — 白噪音播放、屏幕常亮
+- export_service.dart — 导出 CSV 表格并分享
+- i18n.dart / i18n_en.dart — 中英文界面（词典：i18n_en.dart）
+- sessions_screen.dart — 专注记录列表
 - account_ui.dart — 登录/注册界面与设置页账号区块
 - timer_screen / tasks_screen / stats_screen / growth_screen / moments_screen / settings_screen — 六个页面（moments = 纪念日与倒数日）
 - .github/workflows/build-android.yml — 云端构建 APK

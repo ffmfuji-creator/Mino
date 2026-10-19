@@ -8,6 +8,8 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'cloud_sync.dart';
+import 'effects.dart';
+import 'i18n.dart' show I18n;
 import 'notifier.dart';
 
 enum Priority { low, medium, high }
@@ -53,6 +55,9 @@ class TaskItem {
     this.done = false,
     this.rewarded = false,
     this.pomodoros = 0,
+    this.focusSec = 0,
+    this.due,
+    this.tag,
     DateTime? createdAt,
     this.doneAt,
   }) : createdAt = createdAt ?? DateTime.now();
@@ -63,6 +68,9 @@ class TaskItem {
   bool done;
   bool rewarded;
   int pomodoros;
+  int focusSec; // 在这个任务上累计专注的秒数
+  DateTime? due; // 截止日期（只看日期）
+  String? tag; // 分类标签
   final DateTime createdAt;
   DateTime? doneAt;
 
@@ -73,12 +81,16 @@ class TaskItem {
         'done': done,
         'rewarded': rewarded,
         'pomodoros': pomodoros,
+        'focusSec': focusSec,
+        'due': due?.millisecondsSinceEpoch,
+        'tag': tag,
         'createdAt': createdAt.millisecondsSinceEpoch,
         'doneAt': doneAt?.millisecondsSinceEpoch,
       };
 
   static TaskItem fromJson(Map<String, dynamic> j) {
     final doneAtMs = j['doneAt'] as int?;
+    final dueMs = j['due'] as int?;
     return TaskItem(
       id: j['id'] as String,
       title: j['title'] as String,
@@ -86,6 +98,9 @@ class TaskItem {
       done: j['done'] as bool? ?? false,
       rewarded: j['rewarded'] as bool? ?? false,
       pomodoros: j['pomodoros'] as int? ?? 0,
+      focusSec: j['focusSec'] as int? ?? 0,
+      due: dueMs == null ? null : DateTime.fromMillisecondsSinceEpoch(dueMs),
+      tag: j['tag'] as String?,
       createdAt: DateTime.fromMillisecondsSinceEpoch(
           j['createdAt'] as int? ?? DateTime.now().millisecondsSinceEpoch),
       doneAt: doneAtMs == null
@@ -104,6 +119,12 @@ class Settings {
   bool sound = true;
   bool vibrate = true;
   bool darkMode = true;
+  String language = 'zh'; // zh / en / auto（跟随系统）
+  bool keepAwake = true; // 计时中保持屏幕常亮
+  String ambient = 'none'; // none / white / brown / rain
+  int ambientVolume = 50;
+  bool ambientOnlyFocus = true; // 只在专注阶段播放白噪音
+  bool dndTip = true; // 专注时提示开启勿扰
 
   Map<String, dynamic> toJson() => {
         'focusMin': focusMin,
@@ -114,6 +135,12 @@ class Settings {
         'sound': sound,
         'vibrate': vibrate,
         'darkMode': darkMode,
+        'language': language,
+        'keepAwake': keepAwake,
+        'ambient': ambient,
+        'ambientVolume': ambientVolume,
+        'ambientOnlyFocus': ambientOnlyFocus,
+        'dndTip': dndTip,
       };
 
   static Settings fromJson(Map<String, dynamic> j) {
@@ -126,6 +153,14 @@ class Settings {
     s.sound = j['sound'] as bool? ?? true;
     s.vibrate = j['vibrate'] as bool? ?? true;
     s.darkMode = j['darkMode'] as bool? ?? true;
+    final lang = j['language'] as String? ?? 'zh';
+    s.language = (lang == 'zh' || lang == 'en' || lang == 'auto') ? lang : 'zh';
+    s.keepAwake = j['keepAwake'] as bool? ?? true;
+    final amb = j['ambient'] as String? ?? 'none';
+    s.ambient = (amb == 'white' || amb == 'brown' || amb == 'rain') ? amb : 'none';
+    s.ambientVolume = _ci(j['ambientVolume'] as int? ?? 50, 0, 100);
+    s.ambientOnlyFocus = j['ambientOnlyFocus'] as bool? ?? true;
+    s.dndTip = j['dndTip'] as bool? ?? true;
     return s;
   }
 }
@@ -150,25 +185,108 @@ class DayStat {
 }
 
 class Moment {
-  Moment({required this.id, required this.title, required this.time});
+  Moment({
+    required this.id,
+    required this.title,
+    required this.time,
+    this.pinned = false,
+    this.yearly = false,
+  });
   final String id;
   String title;
   DateTime time;
+  bool pinned; // 置顶
+  bool yearly; // 每年重复（生日、周年）
 
   Map<String, dynamic> toJson() => {
         'id': id,
         'title': title,
         'time': time.millisecondsSinceEpoch,
+        'pinned': pinned,
+        'yearly': yearly,
       };
 
   static Moment fromJson(Map<String, dynamic> j) => Moment(
         id: j['id'] as String,
         title: j['title'] as String,
         time: DateTime.fromMillisecondsSinceEpoch(j['time'] as int),
+        pinned: j['pinned'] as bool? ?? false,
+        yearly: j['yearly'] as bool? ?? false,
       );
 }
 
-// ───────────────────────── 等级与成就 ─────────────────────────
+DateTime _yearlyAt(Moment m, int year) {
+  final month = m.time.month;
+  var day = m.time.day;
+  if (month == 2 && day == 29) {
+    final leap = (year % 4 == 0 && year % 100 != 0) || year % 400 == 0;
+    if (!leap) day = 28;
+  }
+  return DateTime(year, month, day, m.time.hour, m.time.minute);
+}
+
+/// 日子当前倒数/正数所指向的时间点。每年重复的日子指向「下一次」。
+DateTime momentTarget(Moment m, DateTime now) {
+  if (!m.yearly) return m.time;
+  if (m.time.isAfter(now)) return m.time;
+  var cand = _yearlyAt(m, now.year);
+  if (cand.isBefore(now)) cand = _yearlyAt(m, now.year + 1);
+  return cand;
+}
+
+/// 两个时间点之间相差几年几个月几天（from 不晚于 to）。
+List<int> calendarDiff(DateTime from, DateTime to) {
+  var y = to.year - from.year;
+  var mo = to.month - from.month;
+  var d = to.day - from.day;
+  final toSec = to.hour * 3600 + to.minute * 60 + to.second;
+  final fromSec = from.hour * 3600 + from.minute * 60 + from.second;
+  if (toSec < fromSec) d -= 1;
+  if (d < 0) {
+    mo -= 1;
+    d += DateTime(to.year, to.month, 0).day; // 上个月的天数
+  }
+  if (mo < 0) {
+    y -= 1;
+    mo += 12;
+  }
+  if (y < 0) return [0, 0, 0];
+  return [y, mo, d];
+}
+
+/// 一次完整的专注记录。
+class Session {
+  Session({
+    required this.id,
+    required this.endedAt,
+    required this.minutes,
+    this.taskId,
+    this.taskTitle,
+  });
+  final String id;
+  final DateTime endedAt;
+  final int minutes;
+  final String? taskId;
+  final String? taskTitle;
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'endedAt': endedAt.millisecondsSinceEpoch,
+        'minutes': minutes,
+        'taskId': taskId,
+        'taskTitle': taskTitle,
+      };
+
+  static Session fromJson(Map<String, dynamic> j) => Session(
+        id: j['id'] as String,
+        endedAt: DateTime.fromMillisecondsSinceEpoch(j['endedAt'] as int),
+        minutes: j['minutes'] as int? ?? 0,
+        taskId: j['taskId'] as String?,
+        taskTitle: j['taskTitle'] as String?,
+      );
+}
+
+// ───────────────────────── 等级与成就// ───────────────────────── 等级与成就 ─────────────────────────
 
 int xpNeeded(int level) => 100 + (level - 1) * 50;
 
@@ -241,6 +359,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   int xp = 0;
   Set<String> unlocked = {};
   List<Moment> moments = [];
+  List<Session> sessions = [];
 
   Phase phase = Phase.focus;
   RunStatus status = RunStatus.idle;
@@ -277,6 +396,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     s._restore();
     s.initCloud();
     Notifier.cancel(); // 冷启动一定在前台：清掉可能残留的预约
+    s._updateSideEffects();
     WidgetsBinding.instance.addObserver(s);
     return s;
   }
@@ -304,6 +424,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       moments = ((j['moments'] as List?) ?? [])
           .map((e) => Moment.fromJson((e as Map).cast<String, dynamic>()))
           .toList();
+      sessions = ((j['sessions'] as List?) ?? [])
+          .map((e) => Session.fromJson((e as Map).cast<String, dynamic>()))
+          .toList();
       unlocked = ((j['unlocked'] as List?) ?? []).map((e) => e as String).toSet();
       final t = (j['timer'] as Map?)?.cast<String, dynamic>() ?? {};
       phase = Phase.values[_ci(t['phase'] as int? ?? 0, 0, 2)];
@@ -323,6 +446,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       xp = 0;
       unlocked = {};
       moments = [];
+      sessions = [];
       phase = Phase.focus;
       status = RunStatus.idle;
       totalMs = _phaseMs(phase);
@@ -332,6 +456,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       activeTaskId = null;
     }
     darkNotifier.value = settings.darkMode;
+    I18n.apply(settings.language);
 
     if (status == RunStatus.running) {
       final now = DateTime.now().millisecondsSinceEpoch;
@@ -350,6 +475,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       'days': days.map((k, v) => MapEntry(k, v.toJson())),
       'xp': xp,
       'moments': moments.map((m) => m.toJson()).toList(),
+      'sessions': sessions.map((s) => s.toJson()).toList(),
       'unlocked': unlocked.toList(),
       'dataUpdatedAt': dataUpdatedAt,
       'syncedUid': syncedUid,
@@ -381,6 +507,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     xp = 0;
     unlocked = {};
     moments = [];
+    sessions = [];
     phase = Phase.focus;
     status = RunStatus.idle;
     focusInCycle = 0;
@@ -389,6 +516,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     remainingMs = totalMs;
     endAtMs = 0;
     darkNotifier.value = true;
+    I18n.apply(settings.language);
     if (CloudSync.currentUser != null) {
       _touch(); // 已登录：把「清空」也同步到云端
     } else {
@@ -521,7 +649,20 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       xp += gain;
       focusInCycle += 1;
       final t = activeTask;
-      if (t != null) t.pomodoros += 1;
+      if (t != null) {
+        t.pomodoros += 1;
+        t.focusSec += totalMs ~/ 1000;
+      }
+      sessions.add(Session(
+        id: DateTime.now().microsecondsSinceEpoch.toString(),
+        endedAt: DateTime.now(),
+        minutes: math.max(1, (totalMs / 60000).round()),
+        taskId: t?.id,
+        taskTitle: t?.title,
+      ));
+      if (sessions.length > 800) {
+        sessions.removeRange(0, sessions.length - 800);
+      }
       msgs.add('专注完成！+$gain XP');
     } else {
       msgs.add('休息结束，开始下一个专注吧');
@@ -576,7 +717,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
 
   void _alert() {
     if (settings.sound) {
-      SystemSound.play(SystemSoundType.alert);
+      AudioService.chime();
     }
     if (settings.vibrate) {
       HapticFeedback.vibrate();
@@ -665,24 +806,56 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       if (a.priority != b.priority) {
         return b.priority.index - a.priority.index;
       }
+      final ad = a.due;
+      final bd = b.due;
+      if (ad != null && bd != null) {
+        final c = ad.compareTo(bd);
+        if (c != 0) return c;
+      } else if (ad != null) {
+        return -1;
+      } else if (bd != null) {
+        return 1;
+      }
       return b.createdAt.compareTo(a.createdAt);
     });
     return list;
   }
 
-  void addTask(String title, Priority p) {
+  /// 所有用过的分类标签（去重、排序）。
+  List<String> get allTags {
+    final set = <String>{};
+    for (final t in tasks) {
+      final g = t.tag;
+      if (g != null && g.isNotEmpty) set.add(g);
+    }
+    final list = set.toList();
+    list.sort();
+    return list;
+  }
+
+  void addTask(String title, Priority p, {DateTime? due, String? tag}) {
     tasks.add(TaskItem(
       id: DateTime.now().microsecondsSinceEpoch.toString(),
       title: title,
       priority: p,
+      due: due,
+      tag: (tag == null || tag.isEmpty) ? null : tag,
     ));
     _touch();
     notifyListeners();
   }
 
-  void updateTask(TaskItem t, {required String title, required Priority priority}) {
+  void updateTask(
+    TaskItem t, {
+    required String title,
+    required Priority priority,
+    DateTime? due,
+    String? tag,
+  }) {
     t.title = title;
     t.priority = priority;
+    t.due = due;
+    t.tag = (tag == null || tag.isEmpty) ? null : tag;
     _touch();
     notifyListeners();
   }
@@ -784,6 +957,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     xp = 0;
     unlocked = {};
     moments = [];
+    sessions = [];
     activeTaskId = null;
     focusInCycle = 0;
     syncedUid = null;
@@ -791,6 +965,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     syncStatus = '';
     _cloudReady = false;
     darkNotifier.value = true;
+    I18n.apply(settings.language);
     _enter(Phase.focus, run: false);
     _save();
     notifyListeners();
@@ -835,6 +1010,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'xp': xp,
         'unlocked': unlocked.toList(),
         'moments': moments.map((m) => m.toJson()).toList(),
+        'sessions': sessions.map((s) => s.toJson()).toList(),
       };
 
   /// 用云端数据整体替换本机数据（不含计时状态）。
@@ -856,7 +1032,11 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     moments = ((j['moments'] as List?) ?? [])
         .map((e) => Moment.fromJson((e as Map).cast<String, dynamic>()))
         .toList();
+    sessions = ((j['sessions'] as List?) ?? [])
+        .map((e) => Session.fromJson((e as Map).cast<String, dynamic>()))
+        .toList();
     darkNotifier.value = settings.darkMode;
+    I18n.apply(settings.language);
     if (activeTaskId != null && activeTask == null) activeTaskId = null;
     if (status == RunStatus.idle) {
       totalMs = _phaseMs(phase);
@@ -880,6 +1060,17 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     }
     moments = mById.values.toList();
 
+    final sById = <String, Session>{for (final s in sessions) s.id: s};
+    for (final e in ((j['sessions'] as List?) ?? [])) {
+      final s = Session.fromJson((e as Map).cast<String, dynamic>());
+      sById[s.id] = s;
+    }
+    sessions = sById.values.toList()
+      ..sort((a, b) => a.endedAt.compareTo(b.endedAt));
+    if (sessions.length > 800) {
+      sessions = sessions.sublist(sessions.length - 800);
+    }
+
     ((j['days'] as Map?) ?? {}).forEach((k, v) {
       final key = k as String;
       final c = DayStat.fromJson((v as Map).cast<String, dynamic>());
@@ -898,6 +1089,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     settings = Settings.fromJson(
         (j['settings'] as Map?)?.cast<String, dynamic>() ?? {});
     darkNotifier.value = settings.darkMode;
+    I18n.apply(settings.language);
     if (activeTaskId != null && activeTask == null) activeTaskId = null;
   }
 
@@ -974,29 +1166,51 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
 
   // ───── 纪念日 / 倒数日 ─────
 
-
-  /// 未来的（倒数）按最近排前，过去的（已过）按最近排前。
+  /// 置顶的在最前；其余未来的（倒数）按最近排前，已过的按最近排前。
   List<Moment> sortedMoments(DateTime now) {
-    final future = moments.where((m) => !m.time.isBefore(now)).toList()
-      ..sort((a, b) => a.time.compareTo(b.time));
-    final past = moments.where((m) => m.time.isBefore(now)).toList()
-      ..sort((a, b) => b.time.compareTo(a.time));
-    return [...future, ...past];
+    final list = List<Moment>.of(moments);
+    list.sort((a, b) {
+      if (a.pinned != b.pinned) return a.pinned ? -1 : 1;
+      final ta = momentTarget(a, now);
+      final tb = momentTarget(b, now);
+      final fa = !ta.isBefore(now);
+      final fb = !tb.isBefore(now);
+      if (fa != fb) return fa ? -1 : 1;
+      return fa ? ta.compareTo(tb) : tb.compareTo(ta);
+    });
+    return list;
   }
 
-  void addMoment(String title, DateTime time) {
+  void addMoment(String title, DateTime time,
+      {bool pinned = false, bool yearly = false}) {
     moments.add(Moment(
       id: DateTime.now().microsecondsSinceEpoch.toString(),
       title: title,
       time: time,
+      pinned: pinned,
+      yearly: yearly,
     ));
     _touch();
     notifyListeners();
   }
 
-  void updateMoment(Moment m, {required String title, required DateTime time}) {
+  void updateMoment(
+    Moment m, {
+    required String title,
+    required DateTime time,
+    required bool pinned,
+    required bool yearly,
+  }) {
     m.title = title;
     m.time = time;
+    m.pinned = pinned;
+    m.yearly = yearly;
+    _touch();
+    notifyListeners();
+  }
+
+  void togglePin(Moment m) {
+    m.pinned = !m.pinned;
     _touch();
     notifyListeners();
   }
@@ -1007,11 +1221,44 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
   }
 
-  // ───── 设置 ─────
+  // ───── 专注记录 ─────
+
+  /// 按时间从新到旧。
+  List<Session> get sessionsNewestFirst {
+    final list = List<Session>.of(sessions);
+    list.sort((a, b) => b.endedAt.compareTo(a.endedAt));
+    return list;
+  }
+
+  // ───── 声音与屏幕常亮 ─────
+
+  String? _lastAmbient;
+
+  void _updateSideEffects() {
+    final wantAmbient = settings.ambient != 'none' &&
+        status == RunStatus.running &&
+        (!settings.ambientOnlyFocus || phase == Phase.focus);
+    final key = wantAmbient ? '${settings.ambient}@${settings.ambientVolume}' : null;
+    if (key != _lastAmbient) {
+      _lastAmbient = key;
+      AudioService.setAmbient(
+          wantAmbient ? settings.ambient : null, settings.ambientVolume / 100.0);
+    }
+    Wake.set(settings.keepAwake && status == RunStatus.running);
+  }
+
+  @override
+  void notifyListeners() {
+    _updateSideEffects();
+    super.notifyListeners();
+  }
+
+  // ───── 设置 ─────  // ───── 设置 ─────
 
   void updateSettings(void Function(Settings s) change) {
     change(settings);
     darkNotifier.value = settings.darkMode;
+    I18n.apply(settings.language);
     if (status == RunStatus.idle) {
       totalMs = _phaseMs(phase);
       remainingMs = totalMs;

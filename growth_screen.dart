@@ -1,6 +1,7 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
 
 import 'app_state.dart';
+import 'i18n.dart';
 import 'ui.dart';
 
 class GrowthScreen extends StatelessWidget {

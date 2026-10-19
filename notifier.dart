@@ -2,6 +2,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/timezone.dart' as tz;
 
+import 'i18n.dart';
+
 /// 后台提醒：应用进入后台时，按计时结束时间预约一条系统通知。
 /// 应用在前台时不预约（用应用内提示音/振动），回到前台时取消预约，避免重复提醒。
 class Notifier {
@@ -60,8 +62,8 @@ class Notifier {
     final details = NotificationDetails(
       android: AndroidNotificationDetails(
         channelId,
-        '计时提醒',
-        channelDescription: '专注或休息结束时提醒',
+        tr('计时提醒'),
+        channelDescription: tr('专注或休息结束时提醒'),
         importance: Importance.max,
         priority: Priority.high,
         playSound: sound,
@@ -72,8 +74,8 @@ class Notifier {
       iOS: DarwinNotificationDetails(presentAlert: true, presentSound: sound),
     );
 
-    final title = focus ? '专注完成' : '休息结束';
-    final body = focus ? '干得漂亮，休息一下吧' : '休息结束，回来继续专注吧';
+    final title = tr(focus ? '专注完成' : '休息结束');
+    final body = tr(focus ? '干得漂亮，休息一下吧' : '休息结束，回来继续专注吧');
 
     try {
       await _plugin.zonedSchedule(
