@@ -50,11 +50,12 @@ jobs:
       - name: Patch Android project
         run: python3 patch_android.py
 
-      - name: Generate icons
+      - name: Generate icons and sounds
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq python3-pil
           python3 make_icon.py
+          python3 make_sounds.py
 
       - name: Get packages
         run: flutter pub get
