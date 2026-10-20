@@ -61,6 +61,13 @@ class SessionsScreen extends StatelessWidget {
                       color: x.taskTitle == null ? mutedColor(context) : null),
                 ),
               ),
+              if (x.partial)
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: Text('未完整',
+                      style: TextStyle(
+                          fontSize: 11, color: mutedColor(context))),
+                ),
               Text('${x.minutes} 分钟',
                   style: TextStyle(
                       fontWeight: FontWeight.w600,

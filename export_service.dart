@@ -70,9 +70,9 @@ class ExportService {
       ]);
 
       await add('sessions', [
-        [tr('结束时间'), tr('时长（分钟）'), tr('任务')],
+        [tr('结束时间'), tr('时长（分钟）'), tr('任务'), tr('类型')],
         for (final x in s.sessionsNewestFirst)
-          [_dt(x.endedAt), x.minutes, x.taskTitle ?? ''],
+          [_dt(x.endedAt), x.minutes, x.taskTitle ?? '', tr(x.partial ? '未完整' : '完整')],
       ]);
 
       final keys = s.days.keys.toList()..sort();

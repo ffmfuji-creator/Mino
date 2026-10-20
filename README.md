@@ -1,4 +1,4 @@
-# Mino v0.5.0
+# Mino v0.6.0
 
 Flutter 专注计时应用（番茄钟 + 任务 + 统计 + 成长）。
 
@@ -17,6 +17,7 @@ Flutter 专注计时应用（番茄钟 + 任务 + 统计 + 成长）。
 - export_service.dart — 导出 CSV 表格并分享
 - i18n.dart / i18n_en.dart — 中英文界面（词典：i18n_en.dart）
 - sessions_screen.dart — 专注记录列表
+- app_test.dart — 单元测试（日期计算、等级、翻译；工作流会自动运行）
 - account_ui.dart — 登录/注册界面与设置页账号区块
 - timer_screen / tasks_screen / stats_screen / growth_screen / moments_screen / settings_screen — 六个页面（moments = 纪念日与倒数日）
 - .github/workflows/build-android.yml — 云端构建 APK

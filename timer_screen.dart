@@ -188,6 +188,7 @@ class TimerScreen extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 12),
+        const _GoalBar(),
         const _AmbientPanel(),
       ],
     );
@@ -338,6 +339,54 @@ class _AmbientPanel extends StatelessWidget {
               ],
             ),
         ],
+      ),
+    );
+  }
+}
+
+/// 今日专注目标进度条（目标为 0 时不显示）。
+class _GoalBar extends StatelessWidget {
+  const _GoalBar();
+
+  @override
+  Widget build(BuildContext context) {
+    final s = AppScope.of(context);
+    final goal = s.settings.dailyGoalMin;
+    if (goal <= 0) return const SizedBox.shrink();
+    final doneMin = s.statFor(DateTime.now()).focusSec ~/ 60;
+    final value = math.min(1.0, doneMin / goal);
+    final reached = doneMin >= goal;
+    final color =
+        reached ? const Color(0xFF34D399) : Theme.of(context).colorScheme.primary;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Panel(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.track_changes, size: 20, color: color),
+                const SizedBox(width: 8),
+                Text('今日目标',
+                    style: TextStyle(fontSize: 13, color: mutedColor(context))),
+                const Spacer(),
+                Text('$doneMin / $goal 分钟',
+                    style: TextStyle(fontWeight: FontWeight.w600, color: color)),
+              ],
+            ),
+            const SizedBox(height: 10),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: LinearProgressIndicator(
+                value: value,
+                minHeight: 8,
+                color: color,
+                backgroundColor: lineColor(context),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

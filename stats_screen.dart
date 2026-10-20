@@ -182,7 +182,7 @@ class StatsScreen extends StatelessWidget {
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(4, 8, 4, 0),
-          child: Text('仅完整结束的专注计入统计；跳过或重置不计入。',
+          child: Text('完整结束的专注计入番茄钟数；中途结束的只计入专注时长（可在设置中关闭）。',
               style: TextStyle(fontSize: 12, color: mutedColor(context))),
         ),
       ],

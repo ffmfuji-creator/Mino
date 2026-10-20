@@ -125,6 +125,8 @@ class Settings {
   int ambientVolume = 50;
   bool ambientOnlyFocus = true; // 只在专注阶段播放白噪音
   bool dndTip = true; // 专注时提示开启勿扰
+  int dailyGoalMin = 100; // 每日专注目标（分钟），0 = 关闭
+  bool countPartial = true; // 重置/跳过时，已专注的部分计入专注时长
 
   Map<String, dynamic> toJson() => {
         'focusMin': focusMin,
@@ -141,6 +143,8 @@ class Settings {
         'ambientVolume': ambientVolume,
         'ambientOnlyFocus': ambientOnlyFocus,
         'dndTip': dndTip,
+        'dailyGoalMin': dailyGoalMin,
+        'countPartial': countPartial,
       };
 
   static Settings fromJson(Map<String, dynamic> j) {
@@ -161,6 +165,8 @@ class Settings {
     s.ambientVolume = _ci(j['ambientVolume'] as int? ?? 50, 0, 100);
     s.ambientOnlyFocus = j['ambientOnlyFocus'] as bool? ?? true;
     s.dndTip = j['dndTip'] as bool? ?? true;
+    s.dailyGoalMin = _ci(j['dailyGoalMin'] as int? ?? 100, 0, 600);
+    s.countPartial = j['countPartial'] as bool? ?? true;
     return s;
   }
 }
@@ -234,24 +240,25 @@ DateTime momentTarget(Moment m, DateTime now) {
   return cand;
 }
 
+DateTime _addMonths(DateTime d, int n) {
+  final total = d.year * 12 + (d.month - 1) + n;
+  final y = total ~/ 12;
+  final mo = total % 12 + 1;
+  final last = DateTime(y, mo + 1, 0).day; // 当月天数
+  final day = d.day > last ? last : d.day;
+  return DateTime(y, mo, day, d.hour, d.minute, d.second);
+}
+
 /// 两个时间点之间相差几年几个月几天（from 不晚于 to）。
+/// 先数满整月（日期超出当月时取月底），剩下的才是天数。
 List<int> calendarDiff(DateTime from, DateTime to) {
-  var y = to.year - from.year;
-  var mo = to.month - from.month;
-  var d = to.day - from.day;
-  final toSec = to.hour * 3600 + to.minute * 60 + to.second;
-  final fromSec = from.hour * 3600 + from.minute * 60 + from.second;
-  if (toSec < fromSec) d -= 1;
-  if (d < 0) {
-    mo -= 1;
-    d += DateTime(to.year, to.month, 0).day; // 上个月的天数
-  }
-  if (mo < 0) {
-    y -= 1;
-    mo += 12;
-  }
-  if (y < 0) return [0, 0, 0];
-  return [y, mo, d];
+  if (to.isBefore(from)) return [0, 0, 0];
+  var months = (to.year - from.year) * 12 + (to.month - from.month);
+  if (to.isBefore(_addMonths(from, months))) months -= 1;
+  if (months < 0) months = 0;
+  final anchor = _addMonths(from, months);
+  final days = to.difference(anchor).inDays;
+  return [months ~/ 12, months % 12, days];
 }
 
 /// 一次完整的专注记录。
@@ -262,12 +269,14 @@ class Session {
     required this.minutes,
     this.taskId,
     this.taskTitle,
+    this.partial = false,
   });
   final String id;
   final DateTime endedAt;
   final int minutes;
   final String? taskId;
   final String? taskTitle;
+  final bool partial; // 中途结束（重置/跳过）的部分专注
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -275,6 +284,7 @@ class Session {
         'minutes': minutes,
         'taskId': taskId,
         'taskTitle': taskTitle,
+        'partial': partial,
       };
 
   static Session fromJson(Map<String, dynamic> j) => Session(
@@ -283,6 +293,7 @@ class Session {
         minutes: j['minutes'] as int? ?? 0,
         taskId: j['taskId'] as String?,
         taskTitle: j['taskTitle'] as String?,
+        partial: j['partial'] as bool? ?? false,
       );
 }
 
@@ -571,14 +582,40 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   void resetCurrent() {
+    _creditPartialFocus();
     _stopTicker();
     _enter(phase, run: false);
     _save();
     notifyListeners();
   }
 
-  /// 跳过当前阶段：不计入统计，也没有奖励。
+  /// 专注进行到一半就重置/跳过/切换：把已专注的时间计入「专注时长」。
+  /// 不算番茄钟、没有经验；不足 1 分钟忽略。必须在状态被重置之前调用。
+  void _creditPartialFocus() {
+    if (!settings.countPartial) return;
+    if (phase != Phase.focus || status == RunStatus.idle) return;
+    final sec = (totalMs - remaining) ~/ 1000;
+    if (sec < 60) return;
+    _today().focusSec += sec;
+    final t = activeTask;
+    if (t != null) t.focusSec += sec;
+    sessions.add(Session(
+      id: DateTime.now().microsecondsSinceEpoch.toString(),
+      endedAt: DateTime.now(),
+      minutes: math.max(1, (sec / 60).round()),
+      taskId: t?.id,
+      taskTitle: t?.title,
+      partial: true,
+    ));
+    if (sessions.length > 800) {
+      sessions.removeRange(0, sessions.length - 800);
+    }
+    _touch();
+  }
+
+  /// 跳过当前阶段：不算番茄钟，没有奖励（已专注的部分仍计入时长）。
   void skip() {
+    _creditPartialFocus();
     _stopTicker();
     final next = phase == Phase.focus ? Phase.shortBreak : Phase.focus;
     _enter(next, run: false);
@@ -588,6 +625,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
 
   void selectPhase(Phase p) {
     if (status == RunStatus.running) return;
+    _creditPartialFocus();
     _enter(p, run: false);
     _save();
     notifyListeners();
@@ -643,7 +681,12 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
 
     if (finished == Phase.focus) {
       final today = _today();
+      final goalSec = settings.dailyGoalMin * 60;
+      final beforeSec = today.focusSec;
       today.focusSec += totalMs ~/ 1000;
+      if (goalSec > 0 && beforeSec < goalSec && today.focusSec >= goalSec) {
+        msgs.add('今日目标达成！');
+      }
       today.pomodoros += 1;
       final gain = settings.focusMin * 2;
       xp += gain;
@@ -926,6 +969,19 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
 
   Future<String?> register(String email, String password) =>
       CloudSync.run(() => CloudSync.register(email, password));
+
+  bool get emailVerified => CloudSync.emailVerified;
+
+  Future<String?> sendVerification() =>
+      CloudSync.run(() => CloudSync.sendVerification());
+
+  /// 用户在邮箱里点完验证链接后，刷新一次登录状态。
+  Future<void> refreshUser() async {
+    try {
+      await CloudSync.reloadUser();
+    } catch (_) {}
+    notifyListeners();
+  }
 
   Future<String?> resetPassword(String email) =>
       CloudSync.run(() => CloudSync.resetPassword(email));

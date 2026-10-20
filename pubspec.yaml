@@ -1,7 +1,7 @@
 name: mino
 description: Mino - 深色科技风专注计时与纪念日应用
 publish_to: 'none'
-version: 0.5.0+6
+version: 0.6.0+7
 
 environment:
   sdk: '>=3.3.0 <4.0.0'
@@ -21,6 +21,8 @@ dependencies:
   share_plus: ^10.1.4
 
 dev_dependencies:
+  flutter_test:
+    sdk: flutter
   flutter_launcher_icons: ^0.14.0
   flutter_native_splash: ^2.4.0
 

@@ -32,9 +32,10 @@ jobs:
         run: |
           flutter --version
           flutter create --project-name mino --org com.mino --platforms=android,ios .
-          mkdir -p lib
-          mv -f *.dart lib/
           rm -rf test analysis_options.yaml
+          mkdir -p lib test
+          mv -f *_test.dart test/
+          mv -f *.dart lib/
 
       - name: Restore release keystore (if configured)
         env:
@@ -59,6 +60,10 @@ jobs:
 
       - name: Get packages
         run: flutter pub get
+
+      - name: Unit tests (informational)
+        continue-on-error: true
+        run: flutter test
 
       - name: Launcher icon
         continue-on-error: true

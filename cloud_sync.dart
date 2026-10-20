@@ -37,8 +37,21 @@ class CloudSync {
   }
 
   static Future<void> register(String email, String password) async {
-    await FirebaseAuth.instance.createUserWithEmailAndPassword(
+    final cred = await FirebaseAuth.instance.createUserWithEmailAndPassword(
         email: email.trim(), password: password);
+    try {
+      await cred.user?.sendEmailVerification(); // 注册后自动发验证邮件（失败不影响注册）
+    } catch (_) {}
+  }
+
+  static bool get emailVerified => currentUser?.emailVerified ?? false;
+
+  static Future<void> sendVerification() async {
+    await FirebaseAuth.instance.currentUser?.sendEmailVerification();
+  }
+
+  static Future<void> reloadUser() async {
+    await FirebaseAuth.instance.currentUser?.reload();
   }
 
   static Future<void> resetPassword(String email) async {

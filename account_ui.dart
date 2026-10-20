@@ -69,6 +69,33 @@ class AccountSection extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(s.syncStatus.isEmpty ? '等待同步' : s.syncStatus, style: muted),
+          if (!s.emailVerified)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Wrap(
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 4,
+                children: [
+                  const Icon(Icons.mark_email_unread_outlined,
+                      size: 16, color: Color(0xFFFBBF24)),
+                  Text('邮箱未验证', style: muted),
+                  TextButton(
+                    onPressed: () async {
+                      final err = await s.sendVerification();
+                      if (context.mounted) {
+                        _toast(context,
+                            err ?? tr('验证邮件已发送，请查收（也看看垃圾邮件）'));
+                      }
+                    },
+                    child: const Text('发送验证邮件'),
+                  ),
+                  TextButton(
+                    onPressed: () => s.refreshUser(),
+                    child: const Text('我已验证'),
+                  ),
+                ],
+              ),
+            ),
           const SizedBox(height: 12),
           Row(
             children: [

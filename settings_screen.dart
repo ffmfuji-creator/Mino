@@ -56,6 +56,14 @@ class SettingsScreen extends StatelessWidget {
                 max: 8,
                 onChanged: (v) => s.updateSettings((x) => x.longEvery = v),
               ),
+              _SliderRow(
+                label: '每日专注目标（分钟，0 = 关闭）',
+                value: st.dailyGoalMin,
+                min: 0,
+                max: 480,
+                step: 10,
+                onChanged: (v) => s.updateSettings((x) => x.dailyGoalMin = v),
+              ),
             ],
           ),
         ),
@@ -105,6 +113,13 @@ class SettingsScreen extends StatelessWidget {
                 value: st.ambientOnlyFocus,
                 onChanged: (v) =>
                     s.updateSettings((x) => x.ambientOnlyFocus = v),
+              ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('中途结束也计入专注时长'),
+                subtitle: const Text('重置或跳过时，已专注满 1 分钟的部分会计入时长（不算番茄钟、没有经验）'),
+                value: st.countPartial,
+                onChanged: (v) => s.updateSettings((x) => x.countPartial = v),
               ),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
@@ -169,7 +184,7 @@ class SettingsScreen extends StatelessWidget {
         ),
         const SizedBox(height: 20),
         Center(
-          child: Text('Mino v0.5.0',
+          child: Text('Mino v0.6.0',
               style: TextStyle(fontSize: 12, color: mutedColor(context))),
         ),
       ],
@@ -184,7 +199,9 @@ class _SliderRow extends StatelessWidget {
     required this.min,
     required this.max,
     required this.onChanged,
+    this.step = 1,
   });
+  final int step;
   final String label;
   final int value;
   final int min;
@@ -210,7 +227,7 @@ class _SliderRow extends StatelessWidget {
           value: value.toDouble(),
           min: min.toDouble(),
           max: max.toDouble(),
-          divisions: max - min,
+          divisions: (max - min) ~/ step,
           onChanged: (v) => onChanged(v.round()),
         ),
       ],
